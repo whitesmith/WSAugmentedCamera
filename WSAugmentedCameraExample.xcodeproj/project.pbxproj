@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D712A4D41EEAF9BC00E86F55 /* WSAugmentedCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D712A4D31EEAF9BC00E86F55 /* WSAugmentedCameraView.swift */; };
 		D73A67A51EEAA36700013093 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73A67A41EEAA36700013093 /* AppDelegate.swift */; };
 		D73A67A71EEAA36700013093 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73A67A61EEAA36700013093 /* CameraViewController.swift */; };
 		D73A67AC1EEAA36700013093 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D73A67AB1EEAA36700013093 /* Assets.xcassets */; };
@@ -14,6 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		D712A4D31EEAF9BC00E86F55 /* WSAugmentedCameraView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = WSAugmentedCameraView.swift; path = Source/WSAugmentedCameraView.swift; sourceTree = SOURCE_ROOT; };
 		D73A67A11EEAA36700013093 /* WSAugmentedCameraExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WSAugmentedCameraExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D73A67A41EEAA36700013093 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		D73A67A61EEAA36700013093 /* CameraViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewController.swift; sourceTree = "<group>"; };
@@ -33,6 +35,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D712A4D51EEAF9D100E86F55 /* Source */ = {
+			isa = PBXGroup;
+			children = (
+				D712A4D31EEAF9BC00E86F55 /* WSAugmentedCameraView.swift */,
+			);
+			name = Source;
+			sourceTree = "<group>";
+		};
 		D73A67981EEAA36700013093 = {
 			isa = PBXGroup;
 			children = (
@@ -54,6 +64,7 @@
 			children = (
 				D73A67A41EEAA36700013093 /* AppDelegate.swift */,
 				D73A67A61EEAA36700013093 /* CameraViewController.swift */,
+				D712A4D51EEAF9D100E86F55 /* Source */,
 				D73A67AB1EEAA36700013093 /* Assets.xcassets */,
 				D73A67AD1EEAA36700013093 /* LaunchScreen.storyboard */,
 				D73A67B01EEAA36700013093 /* Info.plist */,
@@ -133,6 +144,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D712A4D41EEAF9BC00E86F55 /* WSAugmentedCameraView.swift in Sources */,
 				D73A67A71EEAA36700013093 /* CameraViewController.swift in Sources */,
 				D73A67A51EEAA36700013093 /* AppDelegate.swift in Sources */,
 			);
