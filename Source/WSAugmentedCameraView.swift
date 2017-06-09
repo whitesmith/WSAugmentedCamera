@@ -171,6 +171,13 @@ public class WSAugmentedCameraView: UIView {
             setupResult = .configurationFailed
             return
         }
+
+        // Add video frames output.
+        if session.canAddOutput(videoDataOutput) {
+            session.addOutput(videoDataOutput)
+            videoDataOutput.alwaysDiscardsLateVideoFrames = true
+            videoDataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
+        }
     }
 
     private func setupGestures() {
@@ -283,6 +290,26 @@ extension WSAugmentedCameraView: AVCaptureMetadataOutputObjectsDelegate {
         }
     }
     
+}
+
+extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
+
+    public func captureOutput(_ captureOutput: AVCaptureOutput!, didOutputSampleBuffer sampleBuffer: CMSampleBuffer!, from connection: AVCaptureConnection!) {
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return
+        }
+        let image = CIImage(cvPixelBuffer: imageBuffer)
+
+        let options: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorAspectRatio: 1.0]
+        let detector = CIDetector(ofType: CIDetectorTypeText, context: nil, options: options)
+        // Text detections
+        if let features = detector?.features(in: image) {
+            for textFeature in features.flatMap({ $0 as? CITextFeature }) {
+                print("We have text", textFeature.bounds)
+            }
+        }
+    }
+
 }
 
 extension UIDeviceOrientation {
