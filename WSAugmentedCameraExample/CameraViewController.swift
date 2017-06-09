@@ -1,5 +1,5 @@
 //
-//  ViewController.swift
+//  CameraViewController.swift
 //  WSAugmentedCameraExample
 //
 //  Created by Ricardo Pereira on 09/06/2017.
@@ -8,11 +8,11 @@
 
 import UIKit
 
-class ViewController: UIViewController {
+class CameraViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view, typically from a nib.
+        view.backgroundColor = .green
     }
 
     override func didReceiveMemoryWarning() {
@@ -20,6 +20,4 @@ class ViewController: UIViewController {
         // Dispose of any resources that can be recreated.
     }
 
-
 }
-
