@@ -29,22 +29,45 @@ public class WSAugmentedCameraView: UIView {
 
     // MARK: - UI elements
     fileprivate let showcaseImageView = UIImageView()
-    fileprivate let showcaseFrame = CALayer()
 
     // MARK: - Face detections
+    fileprivate lazy var showcaseTextLayer: UILabel = { [unowned self] in
+        let label = UILabel()
+        label.frame = CGRect(x: 15, y: 15, width: 100, height: 100)
+        label.font = .systemFont(ofSize: 50)
+        label.textAlignment = .left
+        self.addSubview(label)
+        return label
+    }()
+    fileprivate lazy var showcaseFaceLayer: CALayer = { [unowned self] in
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        layer.borderColor = UIColor.blue.cgColor
+        layer.borderWidth = 2.0
+        self.layer.addSublayer(layer)
+        return layer
+    }()
     fileprivate lazy var showcaseLeftEyeLayer: CALayer = { [unowned self] in
         let layer = CALayer()
-        layer.frame = CGRect(x: 0, y: 0, width: 30, height: 30)
+        layer.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
         layer.borderColor = UIColor.red.cgColor
-        layer.borderWidth = 1.0
+        layer.borderWidth = 2.0
         self.layer.addSublayer(layer)
         return layer
     }()
     fileprivate lazy var showcaseRightEyeLayer: CALayer = { [unowned self] in
         let layer = CALayer()
-        layer.frame = CGRect(x: 0, y: 0, width: 30, height: 30)
+        layer.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
         layer.borderColor = UIColor.red.cgColor
-        layer.borderWidth = 1.0
+        layer.borderWidth = 2.0
+        self.layer.addSublayer(layer)
+        return layer
+    }()
+    fileprivate lazy var showcaseMouthLayer: CALayer = { [unowned self] in
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 40, height: 20)
+        layer.borderColor = UIColor.green.cgColor
+        layer.borderWidth = 2.0
         self.layer.addSublayer(layer)
         return layer
     }()
@@ -255,16 +278,10 @@ public class WSAugmentedCameraView: UIView {
             showcaseImageView.heightAnchor.constraint(equalToConstant: 100),
             showcaseImageView.widthAnchor.constraint(equalToConstant: 100),
         ])
-
-        showcaseFrame.borderColor = UIColor.red.cgColor
-        showcaseFrame.borderWidth = 1.0
-        //layer.addSublayer(showcaseFrame)
     }
 
     public override func layoutSubviews() {
         super.layoutSubviews()
-        //showcaseFrame.frame = CGRect(x: 0, y: 83, width: 375, height: 501)
-        showcaseFrame.frame = CGRect(x: 75, y: 284, width: 300, height: 300)
     }
 
     private func setupObservers() {
@@ -407,74 +424,55 @@ extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
         // Filter effect
         let comicEffect = CIFilter(name: "CIComicEffect")!
         comicEffect.setValue(image, forKey: kCIInputImageKey)
+        //comicEffect.value(forKey: kCIOutputImageKey) as! CIImage
 
         // Core Graphics
-        guard let graphicImage = context.createCGImage(comicEffect.value(forKey: kCIOutputImageKey) as! CIImage, from: image.extent) else {
+        guard let imageRendered = context.createCGImage(image, from: image.extent) else {
+            // CGImage can only represent bitmaps
             return
         }
 
-        var renderedFaceImage: UIImage? = nil
-        if let face = lastFace, let faceImage = graphicImage.cropping(to: face) {
-            renderedFaceImage = UIImage(cgImage: faceImage)
-        }
-
-        DispatchQueue.main.async {
-            self.showcaseImageView.image = renderedFaceImage
-        }
-
-        return;
-
-        // Face Detection
-        let faceOptions: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorImageOrientation: 6 /*Portrait*/]
-        let faceDetector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: faceOptions)
-        // Face detections
-        if let features = faceDetector?.features(in: image) {
-            for faceFeature in features.flatMap({ $0 as? CIFaceFeature }) {
-                if faceFeature.hasLeftEyePosition {
-                    let isMirrored = videoPreviewLayer.contentsAreFlipped()
-                    let previewBox = videoPreviewLayer.frame
-                    let eyeFrame = transformFaceFeaturePosition(
-                        faceFeature: faceFeature,
-                        position: faceFeature.leftEyePosition,
-                        videoRect: cleanAperture,
-                        previewRect: previewBox,
-                        isMirrored: isMirrored
-                    )
-                    showcaseLeftEyeLayer.frame = eyeFrame
-                }
-                if faceFeature.hasRightEyePosition {
-                    let isMirrored = videoPreviewLayer.contentsAreFlipped()
-                    let previewBox = videoPreviewLayer.frame
-                    let eyeFrame = transformFaceFeaturePosition(
-                        faceFeature: faceFeature,
-                        position: faceFeature.rightEyePosition,
-                        videoRect: cleanAperture,
-                        previewRect: previewBox,
-                        isMirrored: isMirrored
-                    )
-                    showcaseRightEyeLayer.frame = eyeFrame
+        if let face = lastFace, let faceImage = imageRendered.cropping(to: face) {
+            DispatchQueue.main.async {
+                self.showcaseImageView.image = UIImage(cgImage: faceImage)
+                self.showcaseFaceLayer.frame = face
+                if self.showcaseFaceLayer.superlayer == nil {
+                    self.layer.addSublayer(self.showcaseFaceLayer)
                 }
             }
         }
+        else {
+            DispatchQueue.main.async {
+                self.showcaseImageView.image = nil
+                self.showcaseFaceLayer.removeFromSuperlayer()
+            }
+        }
 
-        return;
-
-        let textOptions: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorAspectRatio: 1.0]
-        let textDetector = CIDetector(ofType: CIDetectorTypeText, context: nil, options: textOptions)
-        // Text detections
-        if let features = textDetector?.features(in: image) {
-            for textFeature in features.flatMap({ $0 as? CITextFeature }) {
-                print("We have text", textFeature.bounds)
-                let textImage = image.applyingFilter(
-                    "CIPerspectiveCorrection",
-                    withInputParameters: [
-                        "inputTopLeft": CIVector(cgPoint: textFeature.topLeft),
-                        "inputTopRight": CIVector(cgPoint: textFeature.topRight),
-                        "inputBottomLeft": CIVector(cgPoint: textFeature.bottomLeft),
-                        "inputBottomRight": CIVector(cgPoint: textFeature.bottomRight),
-                    ]
-                )
-                print(textImage)
+        // Face features detection (mouth position, eye position)
+        let faceOptions: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyLow, CIDetectorImageOrientation: 6 /*Portrait*/]
+        let faceDetector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: faceOptions)
+        // Face detections
+        let imageModified = CIImage(cgImage: imageRendered)
+        if let features = faceDetector?.features(in: imageModified, options: [CIDetectorSmile: true, CIDetectorEyeBlink: true]) {
+            for faceFeature in features.flatMap({ $0 as? CIFaceFeature }) {
+                if faceFeature.hasLeftEyePosition {
+                    showcaseLeftEyeLayer.center = transformFaceFeaturePosition(position: faceFeature.leftEyePosition, videoRect: videoRect, previewRect: previewRect)
+                }
+                if faceFeature.hasRightEyePosition {
+                    showcaseRightEyeLayer.center = transformFaceFeaturePosition(position: faceFeature.rightEyePosition, videoRect: videoRect, previewRect: previewRect)
+                }
+                if faceFeature.hasMouthPosition {
+                    showcaseMouthLayer.center = transformFaceFeaturePosition(position: faceFeature.mouthPosition, videoRect: videoRect, previewRect: previewRect)
+                }
+                if faceFeature.leftEyeClosed || faceFeature.rightEyeClosed {
+                    showcaseTextLayer.text = "😉"
+                }
+                else if faceFeature.hasSmile {
+                    showcaseTextLayer.text = "😁"
+                }
+                else {
+                    showcaseTextLayer.text = nil
+                }
             }
         }
     }
@@ -512,41 +510,23 @@ extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
         return transformMake(from: rectSource, to: finalRectTarget)
     }
 
-    private func transformFaceFeaturePosition(faceFeature: CIFaceFeature, position: CGPoint, videoRect: CGRect, previewRect: CGRect, isMirrored: Bool) -> CGRect {
-        // CoreImage coordinate system origin is at the bottom left corner
-        // and UIKit is at the top left corner. So we need to translate
-        // features positions before drawing them to screen. In order to do
-        // so we make an affine transform
+    private func transformFaceFeaturePosition(position: CGPoint, videoRect: CGRect, previewRect: CGRect) -> CGPoint {
+        // CoreImage coordinate system origin is at the bottom left corner and UIKit is at the top left corner. So we need to translate features positions before drawing them to screen
         var transform = CGAffineTransform(scaleX: 1, y: -1)
         transform = transform.translatedBy(x: 0, y: -previewRect.height)
-
-        // Get the left eye position: Convert CoreImage to UIKit coordinates
+        // Convert CoreImage to UIKit coordinates
         let convertedPosition = position.applying(transform)
 
-        // If you want to add this to the the preview layer instead of the video we need to translate its
-        // coordinates a bit more {-x, -y} in other words: {-faceFeature.bounds.origin.x, -faceFeature.bounds.origin.y}
-        let faceWidth = faceFeature.bounds.size.width
-
-        // Create an UIView to represent the left eye, its size depend on the width of the face.
         var featureRect = CGRect(
             x: convertedPosition.x,
             y: convertedPosition.y,
             width: 20,
             height: 20
         )
-        featureRect = featureRect.offsetBy(dx: previewRect.origin.x, dy: previewRect.origin.y)
 
-        return featureRect;
-
-        let widthScale = previewRect.size.width / videoRect.size.height
-        let heightScale = previewRect.size.height / videoRect.size.width
-
-        let featureTransform = isMirrored ? CGAffineTransform(a: 0, b: heightScale, c: -widthScale, d: 0, tx: previewRect.size.width, ty: 0) : CGAffineTransform(a: 0, b: heightScale, c: widthScale, d: 0, tx: 0, ty: 0)
-
-        featureRect = featureRect.applying(featureTransform)
         featureRect = featureRect.offsetBy(dx: previewRect.origin.x, dy: previewRect.origin.y)
         
-        return featureRect
+        return featureRect.origin
     }
 
 }
@@ -573,4 +553,17 @@ extension UIInterfaceOrientation {
         default: return nil
         }
     }
+}
+
+extension CALayer {
+
+    var center: CGPoint {
+        get {
+            return CGPoint(x: frame.midX, y: frame.midY)
+        }
+        set {
+            frame.origin = CGPoint(x: newValue.x - frame.width / 2, y: newValue.y - frame.height / 2)
+        }
+    }
+
 }
