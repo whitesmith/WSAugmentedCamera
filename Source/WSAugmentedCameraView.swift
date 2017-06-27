@@ -25,6 +25,32 @@ public class WSAugmentedCameraView: UIView {
     private let photoOutput = AVCapturePhotoOutput()
     private let metadataOutput = AVCaptureMetadataOutput()
     private let videoDataOutput = AVCaptureVideoDataOutput()
+    fileprivate let context = CIContext()
+
+    // MARK: - UI elements
+    fileprivate let showcaseImageView = UIImageView()
+    fileprivate let showcaseFrame = CALayer()
+
+    // MARK: - Face detections
+    fileprivate lazy var showcaseLeftEyeLayer: CALayer = { [unowned self] in
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 30, height: 30)
+        layer.borderColor = UIColor.red.cgColor
+        layer.borderWidth = 1.0
+        self.layer.addSublayer(layer)
+        return layer
+    }()
+    fileprivate lazy var showcaseRightEyeLayer: CALayer = { [unowned self] in
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: 30, height: 30)
+        layer.borderColor = UIColor.red.cgColor
+        layer.borderWidth = 1.0
+        self.layer.addSublayer(layer)
+        return layer
+    }()
+
+    // Test
+    var lastFace: CGRect?
 
 
     // MARK: - Initializers
@@ -32,6 +58,7 @@ public class WSAugmentedCameraView: UIView {
     public override init(frame: CGRect) {
         super.init(frame: frame)
         setupGestures()
+        setupUI()
     }
 
     public required init?(coder aDecoder: NSCoder) {
@@ -48,6 +75,7 @@ public class WSAugmentedCameraView: UIView {
         guard let layer = layer as? AVCaptureVideoPreviewLayer else {
             fatalError("Expected `AVCaptureVideoPreviewLayer` type for layer")
         }
+        layer.videoGravity = AVLayerVideoGravityResizeAspectFill
         return layer
     }
 
@@ -75,7 +103,7 @@ public class WSAugmentedCameraView: UIView {
          We do not create an AVCaptureMovieFileOutput when setting up the session because the
          AVCaptureMovieFileOutput does not support movie recording with AVCaptureSessionPresetPhoto.
          */
-        session.sessionPreset = AVCaptureSessionPresetPhoto
+        session.sessionPreset = AVCaptureSessionPresetiFrame960x540 //1000x750
         videoPreviewLayer.session = session
 
         // Add video input.
@@ -85,7 +113,7 @@ public class WSAugmentedCameraView: UIView {
             // Choose the back dual camera if available, otherwise default to a wide angle camera.
             if let dualCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInDualCamera, mediaType: AVMediaTypeVideo, position: .back) {
                 defaultVideoDevice = dualCameraDevice
-            } else if let backCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInWideAngleCamera, mediaType: AVMediaTypeVideo, position: .back) {
+            } else if let backCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInTelephotoCamera, mediaType: AVMediaTypeVideo, position: .back) {
                 // If the back dual camera is not available, default to the back wide angle camera.
                 defaultVideoDevice = backCameraDevice
             } else if let frontCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInWideAngleCamera, mediaType: AVMediaTypeVideo, position: .front) {
@@ -95,6 +123,28 @@ public class WSAugmentedCameraView: UIView {
                  */
                 defaultVideoDevice = frontCameraDevice
             }
+
+            // OR choose from a list of available camera devices
+            let deviceDiscoverySession = AVCaptureDeviceDiscoverySession(deviceTypes: [.builtInWideAngleCamera], mediaType: AVMediaTypeVideo, position: .unspecified)
+            // Found the proper camera device
+            guard let availableCameraDevices = deviceDiscoverySession?.devices else {
+                assert(false, "Invalid devices")
+            }
+
+            var cameraBackDevice: AVCaptureDevice?
+            var cameraFrontDevice: AVCaptureDevice?
+
+            for device in availableCameraDevices {
+                if device.position == .back {
+                    cameraBackDevice = device
+                }
+                else if device.position == .front {
+                    cameraFrontDevice = device
+                }
+            }
+
+            // Use
+            defaultVideoDevice = cameraFrontDevice
 
             let videoDeviceInput = try AVCaptureDeviceInput(device: defaultVideoDevice!)
 
@@ -151,7 +201,6 @@ public class WSAugmentedCameraView: UIView {
         // Add photo output.
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
-
             photoOutput.isHighResolutionCaptureEnabled = true
             photoOutput.isLivePhotoCaptureEnabled = photoOutput.isLivePhotoCaptureSupported
             //livePhotoMode = photoOutput.isLivePhotoCaptureSupported ? .on : .off
@@ -164,7 +213,7 @@ public class WSAugmentedCameraView: UIView {
         // Add meta output.
         if session.canAddOutput(metadataOutput) {
             session.addOutput(metadataOutput)
-            metadataOutput.metadataObjectTypes = [AVMetadataObjectTypeQRCode, AVMetadataObjectTypeFace]
+            metadataOutput.metadataObjectTypes = [AVMetadataObjectTypeFace] //more types like: AVMetadataObjectTypeQRCode
             metadataOutput.setMetadataObjectsDelegate(self, queue: DispatchQueue.main)
         } else {
             print("Could not add meta output to the session")
@@ -175,15 +224,47 @@ public class WSAugmentedCameraView: UIView {
         // Add video frames output.
         if session.canAddOutput(videoDataOutput) {
             session.addOutput(videoDataOutput)
+            videoDataOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as AnyHashable: Int(CInt(kCVPixelFormatType_32BGRA))]
             videoDataOutput.alwaysDiscardsLateVideoFrames = true
             videoDataOutput.setSampleBufferDelegate(self, queue: DispatchQueue.main)
+
+            let videoDataOutputConnection = videoDataOutput.connection(withMediaType: AVMediaTypeVideo)
+            videoDataOutputConnection?.videoOrientation = .portrait
         }
+
+        // Video dimensions
+        let videoDimensions = CMVideoFormatDescriptionGetDimensions(deviceInput.device.activeFormat.formatDescription)
+        print(videoDimensions) //should be same as sessionPreset ie: AVCaptureSessionPreset640x480 then CMVideoDimensions is 640x480.
     }
 
     private func setupGestures() {
         let doubleTapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(self.handleGestureCameraDoubleTap))
         doubleTapGestureRecognizer.numberOfTapsRequired = 2
         addGestureRecognizer(doubleTapGestureRecognizer)
+    }
+
+    private func setupUI() {
+        showcaseImageView.contentMode = .scaleAspectFit
+        showcaseImageView.backgroundColor = .white
+        showcaseImageView.clipsToBounds = true
+        showcaseImageView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(showcaseImageView)
+        NSLayoutConstraint.activate([
+            showcaseImageView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+            showcaseImageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+            showcaseImageView.heightAnchor.constraint(equalToConstant: 100),
+            showcaseImageView.widthAnchor.constraint(equalToConstant: 100),
+        ])
+
+        showcaseFrame.borderColor = UIColor.red.cgColor
+        showcaseFrame.borderWidth = 1.0
+        //layer.addSublayer(showcaseFrame)
+    }
+
+    public override func layoutSubviews() {
+        super.layoutSubviews()
+        //showcaseFrame.frame = CGRect(x: 0, y: 83, width: 375, height: 501)
+        showcaseFrame.frame = CGRect(x: 75, y: 284, width: 300, height: 300)
     }
 
     private func setupObservers() {
@@ -282,32 +363,190 @@ public class WSAugmentedCameraView: UIView {
 extension WSAugmentedCameraView: AVCaptureMetadataOutputObjectsDelegate {
 
     public func captureOutput(_ captureOutput: AVCaptureOutput!, didOutputMetadataObjects metadataObjects: [Any]!, from connection: AVCaptureConnection!) {
+        lastFace = nil
         for metadataObject in metadataObjects as! [AVMetadataObject] {
-            if metadataObject.type == AVMetadataObjectTypeFace {
-                let transformedMetadataObject = videoPreviewLayer.transformedMetadataObject(for: metadataObject)
-                print("We have a face", transformedMetadataObject?.bounds ?? CGRect.zero)
+            if metadataObject.type == AVMetadataObjectTypeFace, let metadataFaceObject = metadataObject as? AVMetadataFaceObject {
+                let transformedMetadataObject = videoPreviewLayer.transformedMetadataObject(for: metadataFaceObject)
+                lastFace = transformedMetadataObject?.bounds
             }
         }
     }
-    
+
 }
 
 extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
 
     public func captureOutput(_ captureOutput: AVCaptureOutput!, didOutputSampleBuffer sampleBuffer: CMSampleBuffer!, from connection: AVCaptureConnection!) {
-        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+        // Preview layer/Full screen: (w:375.0, h:667.0) = iPhone 6/6S/7
+        // Video output/Image buffer: (w:480.0, h:640.0) = AVCaptureSessionPreset640x480, Portrait
+
+        // Core Video
+        guard let imageBuffer: CVImageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
-        let image = CIImage(cvPixelBuffer: imageBuffer)
 
-        let options: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorAspectRatio: 1.0]
-        let detector = CIDetector(ofType: CIDetectorTypeText, context: nil, options: options)
-        // Text detections
-        if let features = detector?.features(in: image) {
-            for textFeature in features.flatMap({ $0 as? CITextFeature }) {
-                print("We have text", textFeature.bounds)
+        // Dimensions
+        let videoRect = CGRect(x: 0, y: 0, width: CVPixelBufferGetWidth(imageBuffer), height: CVPixelBufferGetHeight(imageBuffer))
+        let previewRect = CGRect(x: 0, y: 0, width: videoPreviewLayer.frame.width, height: videoPreviewLayer.frame.height)
+        // Format description of the samples in the CMSampleBuffer. i.e.: mediaType, mediaSpecific dimensions, etc.
+        let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer)
+        // A rectangle that defines the portion of the encoded pixel dimensions that represents image data valid for display. Should be same of `videoRect`.
+        let cleanAperture = CMVideoFormatDescriptionGetCleanAperture(formatDescription!, false)
+
+        // Core Image
+        var image = CIImage(cvPixelBuffer: imageBuffer) //CIImage: a representation of an image to be processed or produced by Core Image filters. CIImage object has image data associated with it, it is not an image.
+
+        if videoPreviewLayer.contentsAreFlipped() {
+            // Flip horizontally
+            image = image.applying(CGAffineTransform(scaleX: -1, y: 1))
+        }
+
+        // Transform video output dimension matching the preview layer
+        image = image.applying(transformMakeKeepAspectRatio(from: videoRect, to: previewRect))
+
+        // Filter effect
+        let comicEffect = CIFilter(name: "CIComicEffect")!
+        comicEffect.setValue(image, forKey: kCIInputImageKey)
+
+        // Core Graphics
+        guard let graphicImage = context.createCGImage(comicEffect.value(forKey: kCIOutputImageKey) as! CIImage, from: image.extent) else {
+            return
+        }
+
+        var renderedFaceImage: UIImage? = nil
+        if let face = lastFace, let faceImage = graphicImage.cropping(to: face) {
+            renderedFaceImage = UIImage(cgImage: faceImage)
+        }
+
+        DispatchQueue.main.async {
+            self.showcaseImageView.image = renderedFaceImage
+        }
+
+        return;
+
+        // Face Detection
+        let faceOptions: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorImageOrientation: 6 /*Portrait*/]
+        let faceDetector = CIDetector(ofType: CIDetectorTypeFace, context: nil, options: faceOptions)
+        // Face detections
+        if let features = faceDetector?.features(in: image) {
+            for faceFeature in features.flatMap({ $0 as? CIFaceFeature }) {
+                if faceFeature.hasLeftEyePosition {
+                    let isMirrored = videoPreviewLayer.contentsAreFlipped()
+                    let previewBox = videoPreviewLayer.frame
+                    let eyeFrame = transformFaceFeaturePosition(
+                        faceFeature: faceFeature,
+                        position: faceFeature.leftEyePosition,
+                        videoRect: cleanAperture,
+                        previewRect: previewBox,
+                        isMirrored: isMirrored
+                    )
+                    showcaseLeftEyeLayer.frame = eyeFrame
+                }
+                if faceFeature.hasRightEyePosition {
+                    let isMirrored = videoPreviewLayer.contentsAreFlipped()
+                    let previewBox = videoPreviewLayer.frame
+                    let eyeFrame = transformFaceFeaturePosition(
+                        faceFeature: faceFeature,
+                        position: faceFeature.rightEyePosition,
+                        videoRect: cleanAperture,
+                        previewRect: previewBox,
+                        isMirrored: isMirrored
+                    )
+                    showcaseRightEyeLayer.frame = eyeFrame
+                }
             }
         }
+
+        return;
+
+        let textOptions: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyHigh, CIDetectorAspectRatio: 1.0]
+        let textDetector = CIDetector(ofType: CIDetectorTypeText, context: nil, options: textOptions)
+        // Text detections
+        if let features = textDetector?.features(in: image) {
+            for textFeature in features.flatMap({ $0 as? CITextFeature }) {
+                print("We have text", textFeature.bounds)
+                let textImage = image.applyingFilter(
+                    "CIPerspectiveCorrection",
+                    withInputParameters: [
+                        "inputTopLeft": CIVector(cgPoint: textFeature.topLeft),
+                        "inputTopRight": CIVector(cgPoint: textFeature.topRight),
+                        "inputBottomLeft": CIVector(cgPoint: textFeature.bottomLeft),
+                        "inputBottomRight": CIVector(cgPoint: textFeature.bottomRight),
+                    ]
+                )
+                print(textImage)
+            }
+        }
+    }
+
+    func transformMake(from rectSource: CGRect, to rectTarget: CGRect) -> CGAffineTransform {
+        let sx = rectTarget.size.width/rectSource.size.width
+        let sy = rectTarget.size.height/rectSource.size.height
+
+        // We need to fix the scale ratio, i.e.: from (w:540 h:960) -> to (w:375, h:667), the result will be (w:376, h:668)
+        //So we will substract the `fixScale` value to `sx` and `sy` and the result should be (w:375, h:667).
+        let fixScale: CGFloat = 0.001
+        let scaleTransform = CGAffineTransform(scaleX: sx - fixScale /*remove one pixel ahead*/, y: sy - fixScale /*remove one pixel ahead*/)
+
+        let heightDiff = rectSource.size.height - rectTarget.size.height
+        let widthDiff = rectSource.size.width - rectTarget.size.width
+
+        let dx = rectTarget.origin.x - widthDiff/2 - rectSource.origin.x
+        let dy = rectTarget.origin.y - heightDiff/2 - rectSource.origin.y
+
+        let translationTransfrom = CGAffineTransform(translationX: dx, y: dy)
+        return scaleTransform.concatenating(translationTransfrom)
+    }
+
+    func transformMakeKeepAspectRatio(from rectSource: CGRect, to rectTarget: CGRect) -> CGAffineTransform {
+        let aspectRatio = rectSource.size.width/rectSource.size.height
+
+        var finalRectTarget: CGRect
+        if aspectRatio > rectTarget.size.width/rectTarget.size.height {
+            finalRectTarget = rectTarget.insetBy(dx: 0, dy: (rectTarget.size.height - rectTarget.size.width / aspectRatio) / 2)
+        }
+        else {
+            finalRectTarget = rectTarget.insetBy(dx: (rectTarget.size.width - rectTarget.size.height * aspectRatio) / 2, dy: 0)
+        }
+
+        return transformMake(from: rectSource, to: finalRectTarget)
+    }
+
+    private func transformFaceFeaturePosition(faceFeature: CIFaceFeature, position: CGPoint, videoRect: CGRect, previewRect: CGRect, isMirrored: Bool) -> CGRect {
+        // CoreImage coordinate system origin is at the bottom left corner
+        // and UIKit is at the top left corner. So we need to translate
+        // features positions before drawing them to screen. In order to do
+        // so we make an affine transform
+        var transform = CGAffineTransform(scaleX: 1, y: -1)
+        transform = transform.translatedBy(x: 0, y: -previewRect.height)
+
+        // Get the left eye position: Convert CoreImage to UIKit coordinates
+        let convertedPosition = position.applying(transform)
+
+        // If you want to add this to the the preview layer instead of the video we need to translate its
+        // coordinates a bit more {-x, -y} in other words: {-faceFeature.bounds.origin.x, -faceFeature.bounds.origin.y}
+        let faceWidth = faceFeature.bounds.size.width
+
+        // Create an UIView to represent the left eye, its size depend on the width of the face.
+        var featureRect = CGRect(
+            x: convertedPosition.x,
+            y: convertedPosition.y,
+            width: 20,
+            height: 20
+        )
+        featureRect = featureRect.offsetBy(dx: previewRect.origin.x, dy: previewRect.origin.y)
+
+        return featureRect;
+
+        let widthScale = previewRect.size.width / videoRect.size.height
+        let heightScale = previewRect.size.height / videoRect.size.width
+
+        let featureTransform = isMirrored ? CGAffineTransform(a: 0, b: heightScale, c: -widthScale, d: 0, tx: previewRect.size.width, ty: 0) : CGAffineTransform(a: 0, b: heightScale, c: widthScale, d: 0, tx: 0, ty: 0)
+
+        featureRect = featureRect.applying(featureTransform)
+        featureRect = featureRect.offsetBy(dx: previewRect.origin.x, dy: previewRect.origin.y)
+        
+        return featureRect
     }
 
 }
