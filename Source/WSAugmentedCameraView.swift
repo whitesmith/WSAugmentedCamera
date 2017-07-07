@@ -49,25 +49,28 @@ public class WSAugmentedCameraView: UIView {
     }()
     fileprivate lazy var showcaseLeftEyeLayer: CALayer = { [unowned self] in
         let layer = CALayer()
-        layer.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
-        layer.borderColor = UIColor.red.cgColor
-        layer.borderWidth = 2.0
+        layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        //layer.borderColor = UIColor.red.cgColor
+        //layer.borderWidth = 2.0
+        layer.contents = UIImage(named: "heart")?.cgImage
         self.layer.addSublayer(layer)
         return layer
     }()
     fileprivate lazy var showcaseRightEyeLayer: CALayer = { [unowned self] in
         let layer = CALayer()
-        layer.frame = CGRect(x: 0, y: 0, width: 20, height: 20)
-        layer.borderColor = UIColor.red.cgColor
-        layer.borderWidth = 2.0
+        layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        //layer.borderColor = UIColor.red.cgColor
+        //layer.borderWidth = 2.0
+        layer.contents = UIImage(named: "heart")?.cgImage
         self.layer.addSublayer(layer)
         return layer
     }()
     fileprivate lazy var showcaseMouthLayer: CALayer = { [unowned self] in
         let layer = CALayer()
-        layer.frame = CGRect(x: 0, y: 0, width: 40, height: 20)
-        layer.borderColor = UIColor.green.cgColor
-        layer.borderWidth = 2.0
+        layer.frame = CGRect(x: 0, y: 0, width: 140, height: 40)
+        //layer.borderColor = UIColor.green.cgColor
+        //layer.borderWidth = 2.0
+        layer.contents = UIImage(named: "moustache")?.cgImage
         self.layer.addSublayer(layer)
         return layer
     }()
@@ -464,6 +467,7 @@ extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
                 if faceFeature.hasMouthPosition {
                     showcaseMouthLayer.center = transformFaceFeaturePosition(position: faceFeature.mouthPosition, videoRect: videoRect, previewRect: previewRect)
                 }
+
                 if faceFeature.leftEyeClosed || faceFeature.rightEyeClosed {
                     showcaseTextLayer.text = "😉"
                 }
