@@ -130,7 +130,9 @@ public class WSAugmentedCameraView: UIView {
          AVCaptureMovieFileOutput does not support movie recording with AVCaptureSessionPresetPhoto.
          */
         session.sessionPreset = AVCaptureSessionPresetiFrame960x540 //1000x750
-        videoPreviewLayer.session = session
+        DispatchQueue.main.sync {
+            videoPreviewLayer.session = session
+        }
 
         // Add video input.
         do {
