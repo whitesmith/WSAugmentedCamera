@@ -50,18 +50,20 @@ public class WSAugmentedCameraView: UIView {
     fileprivate lazy var showcaseLeftEyeLayer: CALayer = { [unowned self] in
         let layer = CALayer()
         layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        layer.bounds = CGRect(x: 0, y: 0, width: 50, height: 50)
         //layer.borderColor = UIColor.red.cgColor
         //layer.borderWidth = 2.0
-        layer.contents = UIImage(named: "heart")?.cgImage
+        //layer.contents = UIImage(named: "heart")?.cgImage
         self.layer.addSublayer(layer)
         return layer
     }()
     fileprivate lazy var showcaseRightEyeLayer: CALayer = { [unowned self] in
         let layer = CALayer()
         layer.frame = CGRect(x: 0, y: 0, width: 50, height: 50)
+        layer.bounds = CGRect(x: 0, y: 0, width: 50, height: 50)
         //layer.borderColor = UIColor.red.cgColor
         //layer.borderWidth = 2.0
-        layer.contents = UIImage(named: "heart")?.cgImage
+        //layer.contents = UIImage(named: "heart")?.cgImage
         self.layer.addSublayer(layer)
         return layer
     }()
@@ -70,9 +72,55 @@ public class WSAugmentedCameraView: UIView {
         layer.frame = CGRect(x: 0, y: 0, width: 140, height: 40)
         //layer.borderColor = UIColor.green.cgColor
         //layer.borderWidth = 2.0
-        layer.contents = UIImage(named: "moustache")?.cgImage
+        //layer.contents = UIImage(named: "moustache")?.cgImage
         self.layer.addSublayer(layer)
         return layer
+    }()
+    fileprivate let showcaseGlassesInitialBounds = CGRect(x: 0, y: 0, width: 180, height: 44)
+    fileprivate lazy var showcaseGlassesLayer: CALayer = { [unowned self] in
+        let layer = CALayer()
+        layer.frame = self.showcaseGlassesInitialBounds
+        layer.contentsGravity = kCAGravityResizeAspect
+        layer.borderColor = UIColor.yellow.cgColor
+        layer.borderWidth = 2.0
+        self.layer.addSublayer(layer)
+        return layer
+    }()
+    fileprivate lazy var glasses: [UIImage] = {
+        var list = [UIImage]()
+        var i = 1
+        while let image = UIImage(named: "glasses-\(i)") {
+            list.append(image)
+            i += 1
+        }
+        return list
+    }()
+    fileprivate var currentGlasses: Int = 0 {
+        didSet {
+            if currentGlasses < 0 {
+                currentGlasses = glasses.count - 1
+            }
+            if currentGlasses >= glasses.count {
+                currentGlasses = 0
+            }
+            showcaseGlassesLayer.contents = glasses[currentGlasses].cgImage
+        }
+    }
+
+    fileprivate lazy var showcaseGlassesButton: UIButton = { [unowned self] in
+        let button = UIButton(type: .system)
+        button.setTitle("Next", for: .normal)
+        button.backgroundColor = .white
+        button.translatesAutoresizingMaskIntoConstraints = false
+        self.addSubview(button)
+        NSLayoutConstraint.activate([
+            button.bottomAnchor.constraint(equalTo: self.bottomAnchor, constant: -10),
+            button.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -10),
+            button.heightAnchor.constraint(equalToConstant: 44),
+            button.widthAnchor.constraint(equalToConstant: 140),
+        ])
+        button.addTarget(self, action: #selector(self.didTouchNext), for: .touchUpInside)
+        return button
     }()
 
     // Test
@@ -268,6 +316,10 @@ public class WSAugmentedCameraView: UIView {
             showcaseImageView.heightAnchor.constraint(equalToConstant: 100),
             showcaseImageView.widthAnchor.constraint(equalToConstant: 100),
         ])
+
+        showcaseGlassesButton.isHidden = false
+
+        currentGlasses = 0
     }
 
     public override func layoutSubviews() {
@@ -365,6 +417,10 @@ public class WSAugmentedCameraView: UIView {
 
     }
 
+    func didTouchNext() {
+        currentGlasses += 1
+    }
+
 }
 
 extension WSAugmentedCameraView: AVCaptureMetadataOutputObjectsDelegate {
@@ -453,6 +509,17 @@ extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
                 if faceFeature.hasMouthPosition {
                     showcaseMouthLayer.center = transformFaceFeaturePosition(position: faceFeature.mouthPosition, videoRect: videoRect, previewRect: previewRect)
+                }
+
+                if faceFeature.hasFaceAngle {
+                    let rotationAngle: Measurement<UnitAngle> = Measurement(value: Double(faceFeature.faceAngle), unit: .degrees)
+                    let rotationInRadians = CGFloat(rotationAngle.converted(to: .radians).value)
+                    showcaseGlassesLayer.transform = CATransform3DMakeRotation(rotationInRadians, 0, 0, 1)
+                }
+
+                if faceFeature.hasLeftEyePosition && faceFeature.hasRightEyePosition {
+                    showcaseGlassesLayer.bounds = CGRect(x: 0, y: 0, width: faceFeature.bounds.width, height: showcaseGlassesInitialBounds.height * faceFeature.bounds.width / showcaseGlassesInitialBounds.width)
+                    showcaseGlassesLayer.center = showcaseLeftEyeLayer.center.midpoint(to: showcaseRightEyeLayer.center)
                 }
 
                 if faceFeature.leftEyeClosed || faceFeature.rightEyeClosed {
@@ -555,6 +622,18 @@ extension CALayer {
         set {
             frame.origin = CGPoint(x: newValue.x - frame.width / 2, y: newValue.y - frame.height / 2)
         }
+    }
+
+}
+
+extension CGPoint {
+
+    func distance(to point: CGPoint) -> CGFloat {
+        return sqrt(pow(x - point.x, 2) + pow(y - point.y, 2))
+    }
+
+    func midpoint(to point: CGPoint) -> CGPoint {
+        return CGPoint(x: (x + point.x)/2, y: (y + point.y)/2)
     }
 
 }
