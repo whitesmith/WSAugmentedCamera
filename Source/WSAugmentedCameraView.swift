@@ -135,22 +135,7 @@ public class WSAugmentedCameraView: UIView {
         // Add video input.
         do {
             var defaultVideoDevice: AVCaptureDevice?
-
-            // Choose the back dual camera if available, otherwise default to a wide angle camera.
-            if let dualCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInDualCamera, mediaType: AVMediaTypeVideo, position: .back) {
-                defaultVideoDevice = dualCameraDevice
-            } else if let backCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInTelephotoCamera, mediaType: AVMediaTypeVideo, position: .back) {
-                // If the back dual camera is not available, default to the back wide angle camera.
-                defaultVideoDevice = backCameraDevice
-            } else if let frontCameraDevice = AVCaptureDevice.defaultDevice(withDeviceType: .builtInWideAngleCamera, mediaType: AVMediaTypeVideo, position: .front) {
-                /*
-                 In some cases where users break their phones, the back wide angle camera is not available.
-                 In this case, we should default to the front wide angle camera.
-                 */
-                defaultVideoDevice = frontCameraDevice
-            }
-
-            // OR choose from a list of available camera devices
+            // Choose from a list of available camera devices
             let deviceDiscoverySession = AVCaptureDeviceDiscoverySession(deviceTypes: [.builtInWideAngleCamera], mediaType: AVMediaTypeVideo, position: .unspecified)
             // Found the proper camera device
             guard let availableCameraDevices = deviceDiscoverySession?.devices else {
