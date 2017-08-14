@@ -117,6 +117,7 @@ public class WSAugmentedCameraView: UIView {
         return layer
     }()
 
+    var lastUpdate = Date()
     var lastDetectedFaceRect: CGRect?
 
 
@@ -463,6 +464,11 @@ extension WSAugmentedCameraView: AVCaptureVideoDataOutputSampleBufferDelegate {
                 self.debugFaceLayer.removeFromSuperlayer()
             }
         }
+
+        if -lastUpdate.timeIntervalSinceNow < 0.2 {
+            return
+        }
+        lastUpdate = Date()
 
         // Face features detection (mouth position, eye position)
         let faceOptions: [String: Any] = [CIDetectorAccuracy: CIDetectorAccuracyLow, CIDetectorImageOrientation: 6 /*Portrait*/]
